@@ -41,17 +41,17 @@ def find_and_terminate_process(port):
                     print(f"Process with PID {process.info['pid']} not found")
 
 def run_app(env):
-    cmd = 'python run.py --execution-providers cuda > log.txt & ssh -o StrictHostKeyChecking=no -p 80 -R0:localhost:7860 a.pinggy.io > log.txt'
+    cmd = 'python run.py --execution-providers cuda > log.txt & ssh -o StrictHostKeyChecking=no -p 80 -R 0:localhost:7860 a.pinggy.io > log.txt'
     subprocess.run(cmd, shell=True, env=env)
 
-def print_url():
-    print("waiting for output")
+def print_pinggy_url():
+    print("Waiting for Pinggy output...")
     time.sleep(2)
     sys.stdout.flush()
 
     found = False
     with open('log.txt', 'r') as file:
-        end_word = '.pinggy.link'
+        end_word = '.pinggy.io'
         for line in file:
             start_index = line.find("http:")
             if start_index != -1:
@@ -62,15 +62,24 @@ def print_url():
                     print("😁 😁 😁")
                     found = True
     if not found:
-        print_url()
+        print_pinggy_url()
     else:
         with open('log.txt', 'r') as file:
             for line in file:
                 print(line)
 
+def print_serveo_url(port):
+    print("Waiting for Serveo output...")
+    cmd = f"ssh -R 80:localhost:{port} serveo.net"
+    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    for line in process.stdout:
+        if b'serveo.net' in line:
+            print(line.decode().strip())
+    process.stdout.close()
+    process.stderr.close()
+
 def setup_serveo(env, target_port):
-    cmd = f"ssh -R 80:localhost:{target_port} serveo.net"
-    subprocess.run(cmd, shell=True, env=env)
+    print_serveo_url(target_port)
 
 def setup_pinggy(env):
     try:
@@ -81,7 +90,7 @@ def setup_pinggy(env):
     subprocess.run('touch log.txt', shell=True, env=env)
     open('log.txt', 'w').close()
     p_app = Process(target=run_app, args=(env,))
-    p_url = Process(target=print_url)
+    p_url = Process(target=print_pinggy_url)
     p_app.start()
     p_url.start()
     p_app.join()
@@ -106,31 +115,31 @@ def main():
 
     if args.reset:
         if saved_data is not None:
-            saved_data = { 'tunnel': ''}
+            saved_data = {'tunnel': ''}
     else:
         if saved_data is not None:
             if args.tunnel:
-                saved_data['tunnel'] = args.tunnel 
-            try: 
+                saved_data['tunnel'] = args.tunnel
+            try:
                 print("Tunnel in the json file is: " + saved_data['tunnel'])
-            except:
+            except KeyError:
                 saved_data['tunnel'] = ''
         else:
-            saved_data = { 'tunnel': ''}
+            saved_data = {'tunnel': ''}
 
     if args.tunnel is None:
-        if saved_data and saved_data['tunnel']: 
+        if saved_data and saved_data['tunnel']:
             args.tunnel = saved_data['tunnel']
-        else: 
+        else:
             args.tunnel = input('Enter a tunnel: pinggy [1], serveo [2] (1/2): ')
             if args.tunnel == '':
                 args.tunnel = 1
             saved_data['tunnel'] = args.tunnel
-            
+
     save_data(saved_data)
 
     cmd = 'python run.py --execution-providers cuda'
-    
+
     print("Tunnel: " + args.tunnel)
     if args.tunnel == '1':
         setup_pinggy(env)
